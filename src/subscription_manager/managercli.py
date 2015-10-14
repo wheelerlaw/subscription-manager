@@ -17,6 +17,7 @@
 #
 
 import datetime
+import errno
 import fileinput
 import fnmatch
 import getpass
@@ -1496,33 +1497,44 @@ class AttachCommand(CliCommand):
             if self.options.pool:
                 subscribed = False
                 for pool in self.options.pool:
-                    try:
-                        # odd html strings will cause issues, reject them here.
-                        if (pool.find("#") >= 0):
-                            system_exit(os.EX_USAGE, _("Please enter a valid numeric pool ID."))
-                        # If quantity is None, server will assume 1. pre_subscribe will
-                        # report the same.
-                        self.plugin_manager.run("pre_subscribe",
-                                                consumer_uuid=self.identity.uuid,
-                                                pool_id=pool,
-                                                quantity=self.options.quantity)
-                        ents = self.cp.bindByEntitlementPool(self.identity.uuid, pool, self.options.quantity)
-                        self.plugin_manager.run("post_subscribe", consumer_uuid=self.identity.uuid, entitlement_data=ents)
-                        # Usually just one, but may as well be safe:
-                        for ent in ents:
-                            pool_json = ent['pool']
-                            print _("Successfully attached a subscription for: %s") % pool_json['productName']
-                            log.info("Successfully attached a subscription for: %s (%s)" %
-                                    (pool_json['productName'], pool))
-                            subscribed = True
-                    except connection.RestlibException, re:
-                        log.exception(re)
-                        if re.code == 403:
-                            print re.msg  # already subscribed.
-                        elif re.code == 400 or re.code == 404:
-                            print re.msg  # no such pool.
-                        else:
-                            system_exit(os.EX_SOFTWARE, re.msg)  # some other error.. don't try again
+                    retry_count = 3
+                    while retry_count > 0:
+                        try:
+                            # odd html strings will cause issues, reject them here.
+                            if (pool.find("#") >= 0):
+                                system_exit(os.EX_USAGE, _("Please enter a valid numeric pool ID."))
+                            # If quantity is None, server will assume 1. pre_subscribe will
+                            # report the same.
+                            self.plugin_manager.run("pre_subscribe",
+                                                    consumer_uuid=self.identity.uuid,
+                                                    pool_id=pool,
+                                                    quantity=self.options.quantity)
+                            ents = self.cp.bindByEntitlementPool(self.identity.uuid, pool, self.options.quantity)
+                            self.plugin_manager.run("post_subscribe", consumer_uuid=self.identity.uuid, entitlement_data=ents)
+                            # Usually just one, but may as well be safe:
+                            for ent in ents:
+                                pool_json = ent['pool']
+                                print _("Successfully attached a subscription for: %s") % pool_json['productName']
+                                log.info("Successfully attached a subscription for: %s (%s)" %
+                                        (pool_json['productName'], pool))
+                                subscribed = True
+
+                        except socket.error as e:
+                            if e.errno == errno.ECONNRESET:
+                                retry_count -= 1
+                                continue
+
+                        except connection.RestlibException, re:
+                            log.exception(re)
+                            if re.code == 403:
+                                print re.msg  # already subscribed.
+                            elif re.code == 400 or re.code == 404:
+                                print re.msg  # no such pool.
+                            else:
+                                system_exit(os.EX_SOFTWARE, re.msg)  # some other error.. don't try again
+
+                        break
+
                 if not subscribed:
                     return_code = 1
             # must be auto
@@ -1541,16 +1553,26 @@ class AttachCommand(CliCommand):
                                 "No need to update subscriptions at this time.")
                     cert_update = False
                 else:
-                    # If service level specified, make an additional request to
-                    # verify service levels are supported on the server:
-                    if self.options.service_level:
-                        consumer = self.cp.getConsumer(self.identity.uuid)
-                        if 'serviceLevel' not in consumer:
-                            system_exit(os.EX_UNAVAILABLE, _("Error: The --servicelevel option is not "
-                                             "supported by the server. Did not "
-                                             "complete your request."))
-                    autosubscribe(self.cp, self.identity.uuid,
-                                  service_level=self.options.service_level)
+                    retry_count = 3
+                    while retry_count > 0:
+                        try:
+                            # If service level specified, make an additional request to
+                            # verify service levels are supported on the server:
+                            if self.options.service_level:
+                                consumer = self.cp.getConsumer(self.identity.uuid)
+                                if 'serviceLevel' not in consumer:
+                                    system_exit(os.EX_UNAVAILABLE,_("Error: The --servicelevel option is not "
+                                                     "supported by the server. Did not "
+                                                     "complete your request."))
+                            autosubscribe(self.cp, self.identity.uuid,
+                                          service_level=self.options.service_level)
+                        except socket.error as e:
+                            if e.errno == errno.ECONNRESET:
+                                retry_count -= 1
+                                continue
+
+                        break
+
             report = None
             if cert_update:
                 report = self.entcertlib.update()

@@ -1122,6 +1122,32 @@ class TestAttachCommand(TestCliProxyCommand):
         else:
             self.fail("No Exception Raised")
 
+    #@mock.patch("subscription_manager.managercli.RepoFile")
+    #def test_pool_attach_retry(self,
+
+
+    # def test_set_repo_status_when_disconnected(self, mock_repofile):
+    #     self._inject_mock_invalid_consumer()
+    #     mock_repofile_inst = mock_repofile.return_value
+
+    #     enabled = {'enabled': '1'}.items()
+    #     disabled = {'enabled': '0'}.items()
+
+    #     zoo = Repo('zoo', enabled)
+    #     zebra = Repo('zebra', disabled)
+    #     zippy = Repo('zippy', enabled)
+    #     zero = Repo('zero', disabled)
+    #     repos = [zoo, zebra, zippy, zero]
+    #     items = [('0', 'z*')]
+
+    #     self.cc._set_repo_status(repos, None, items)
+    #     calls = [mock.call(r) for r in repos if r['enabled'] == 1]
+    #     mock_repofile_inst.update.assert_has_calls(calls)
+    #     for r in repos:
+    #         self.assertEquals('0', r['enabled'])
+    #     mock_repofile_inst.write.assert_called_once_with()
+
+
 
 # Test Attach and Subscribe are the same
 class TestSubscribeCommand(TestAttachCommand):
