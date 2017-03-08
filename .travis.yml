@@ -1,0 +1,24 @@
+language: python
+python:
+  - "2.7"
+
+script: "true"
+
+env:
+  global:
+   # The next declaration is the encrypted COVERITY_SCAN_TOKEN, created
+   #   via the "travis encrypt" command using the project repo's public key
+   - secure: "VH0Z2UtEu19rE0scEllgt0kOaGwiY5eJU2hmgZ9WLICaNdWR3CKUlIpdilI7yl4D54NBjYgITESrK38AhH0apAuV056ZHrvwMQm2xAfeqmG8oaPwcdjIaZ40yJb7xJERzo08WLwBhitLPDKLN4GhBLG//Rh5fIjP30REYI2hoC8="
+
+before_install:
+      - echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-
+
+addons:
+  coverity_scan:
+    project:
+      name: "candlepin/subscription-manager"
+      description: "Build submitted via Travis CI"
+    notification_email: khowell@redhat.com
+    build_command_prepend: ""
+    build_command:   "make coverity"
+    branch_pattern: coverity_scan

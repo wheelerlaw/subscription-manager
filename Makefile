@@ -432,3 +432,7 @@ jenkins: install-pip-requirements build stylish coverage
 .PHONY: set-versions
 # Empty task retained for legacy compatibility with CI environment
 set-versions: ;
+
+.PHONY: coverity
+coverity: build
+	(cd python-rhsm; python setup.py build; python setup.py build_ext --inplace)
