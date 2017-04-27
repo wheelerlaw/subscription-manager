@@ -54,7 +54,7 @@ class DmiFirmwareInfoCollector(collector.FactsCollector):
 
         To 'unset' it, it can be set back to '/dev/mem', or
         re set it to another dump file."""
-        if os.access(self.dump_file, os.R_OK):
+        if self.dump_file and os.access(self.dump_file, os.R_OK):
             dmidecode.set_dev(self.dump_file)
 
     # This needs all of the previously collected hwinfo, so it can decide
