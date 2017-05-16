@@ -15,7 +15,7 @@
 %{!?__global_ldflags: %global __global_ldflags -Wl,-z,relro -Wl,-z,now}
 
 Name: python-rhsm
-Version: 1.19.5
+Version: 1.20.0
 Release: 1%{?dist}
 
 Summary: A Python library to communicate with a Red Hat Unified Entitlement Platform
@@ -31,7 +31,7 @@ URL: http://www.candlepinproject.org
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 %if %use_m2crypto
-%if 0%{?sles_version}
+%if 0%{?suse_version}
 Requires: python-m2crypto
 %else
 Requires: m2crypto
@@ -45,7 +45,7 @@ Requires: python-simplejson
 %endif
 Requires: python-rhsm-certificates = %{version}-%{release}
 
-%if 0%{?sles_version}
+%if 0%{?suse_version}
 BuildRequires: python-devel >= 2.6
 %else
 BuildRequires: python2-devel
@@ -79,7 +79,7 @@ PYTHON_RHSM_VERSION=%{version} PYTHON_RHSM_RELEASE=%{release} CFLAGS="%{optflags
 
 %install
 rm -rf %{buildroot}
-%{__python} setup.py install -O1 --skip-build --root %{buildroot}
+%{__python} setup.py install -O1 --skip-build --root %{buildroot} --prefix=%{_prefix}
 mkdir -p %{buildroot}%{_sysconfdir}/rhsm/ca
 install etc-conf/ca/*.pem %{buildroot}%{_sysconfdir}/rhsm/ca
 
@@ -102,6 +102,15 @@ rm -rf %{buildroot}
 %attr(644,root,root) %{_sysconfdir}/rhsm/ca/*.pem
 
 %changelog
+* Mon May 08 2017 Kevin Howell <khowell@redhat.com> 1.20.0-1
+- Bump version to 1.20.0 
+
+* Tue May 02 2017 Kevin Howell <khowell@redhat.com> 1.19.6-1
+- 1426343: fixed rct to display cert without subjectAltName.
+  (jhnidek@redhat.com)
+- Add Update subscriptions pools (tcoufal@redhat.com)
+- Add support to list future subscription pools (tcoufal@redhat.com)
+
 * Mon Apr 17 2017 Kevin Howell <khowell@redhat.com> 1.19.5-1
 - 1432990: Better message for bad CA cert (wpoteat@redhat.com)
 

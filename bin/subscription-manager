@@ -1,4 +1,6 @@
-#!/usr/bin/python -S
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 #
 # wrapper for subscription Manager commandline tool.
 #
@@ -21,9 +23,12 @@
 if __name__ != '__main__':
     raise ImportError("module cannot be imported")
 
+# hack to allow bytes/strings to be interpolated w/ unicode values (gettext gives us bytes)
+# Without this, for example, "Формат: %s\n" % u"foobar" will fail with UnicodeDecodeError
+# See http://stackoverflow.com/a/29832646/6124862 for more details
 import sys
+reload(sys)
 sys.setdefaultencoding('utf-8')
-import site
 import os
 
 # work around for https://bugzilla.redhat.com/show_bug.cgi?id=1402009

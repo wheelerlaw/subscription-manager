@@ -29,6 +29,8 @@ from subscription_manager.cache import OverrideStatusCache, WrittenOverrideCache
 from subscription_manager import utils
 from subscription_manager import model
 from subscription_manager.model import ent_cert
+from urllib import urlencode
+from urlparse import parse_qs, urlparse, urlunparse
 
 from rhsm.config import initConfig, in_container
 
@@ -43,6 +45,8 @@ log = logging.getLogger(__name__)
 conf = config.Config(initConfig())
 
 ALLOWED_CONTENT_TYPES = ["yum"]
+
+ZYPPER_REPO_DIR = '/etc/rhsm/zypper.repos.d'
 
 _ = gettext.gettext
 
@@ -89,12 +93,21 @@ class RepoActionInvoker(BaseActionInvoker):
         # Add the current repo data
         repo_file = RepoFile()
         repo_file.read()
+        server_value_repo_file = RepoFile('var/lib/rhsm/repo_server_val/')
+        server_value_repo_file.read()
         for repo in repos:
             existing = repo_file.section(repo.id)
+            server_value_repo = server_value_repo_file.section(repo.id)
+            # we need a repo in the server val file to match any in
+            # the main repo definition file
+            if server_value_repo is None:
+                server_value_repo = Repo(repo.id)
+                server_value_repo['name'] = repo['name']
+                server_value_repo_file.add(server_value_repo)
             if existing is None:
                 current.add(repo)
             else:
-                action.update_repo(existing, repo)
+                action.update_repo(existing, repo, server_value_repo)
                 current.add(existing)
 
         return current
@@ -108,6 +121,13 @@ class RepoActionInvoker(BaseActionInvoker):
         repo_file = RepoFile()
         if os.path.exists(repo_file.path):
             os.unlink(repo_file.path)
+
+        # if we have zypper repo, remove it too.
+        if os.path.exists(ZYPPER_REPO_DIR):
+            zypper_repo_file = ZypperRepoFile()
+            if os.path.exists(zypper_repo_file.path):
+                os.unlink(zypper_repo_file.path)
+
         # When the repo is removed, also remove the override tracker
         WrittenOverrideCache.delete_cache()
 
@@ -201,6 +221,9 @@ class RepoUpdateActionCommand(object):
         - yum config
         - manual changes made to "redhat.repo".
 
+    If the system in question has a zypper repo directory, will also generate
+    zypper repo config.
+
     Returns an RepoActionReport.
     """
     def __init__(self, cache_only=False, apply_overrides=True):
@@ -246,7 +269,7 @@ class RepoUpdateActionCommand(object):
         # Only attempt to update the overrides if they are supported
         # by the server.
         if self.override_supported:
-            self.written_overrides._read_cache()
+            self.written_overrides.read_cache_only()
 
             try:
                 override_cache = inj.require(inj.OVERRIDE_STATUS_CACHE)
@@ -254,7 +277,7 @@ class RepoUpdateActionCommand(object):
                 override_cache = OverrideStatusCache()
 
             if cache_only:
-                status = override_cache._read_cache()
+                status = override_cache.read_cache_only()
             else:
                 status = override_cache.load_status(self.uep, self.identity.uuid)
 
@@ -267,6 +290,10 @@ class RepoUpdateActionCommand(object):
     def perform(self):
         # Load the RepoFile from disk, this contains all our managed yum repo sections:
         repo_file = RepoFile()
+        server_value_repo_file = RepoFile('var/lib/rhsm/repo_server_val/')
+        zypper_repo_file = None
+        if os.path.exists(ZYPPER_REPO_DIR):
+            zypper_repo_file = ZypperRepoFile()
 
         # the [rhsm] manage_repos can be overridden to disable generation of the
         # redhat.repo file:
@@ -280,6 +307,9 @@ class RepoUpdateActionCommand(object):
             return 0
 
         repo_file.read()
+        server_value_repo_file.read()
+        if zypper_repo_file:
+            zypper_repo_file.read()
         valid = set()
 
         # Iterate content from entitlement certs, and create/delete each section
@@ -287,28 +317,95 @@ class RepoUpdateActionCommand(object):
         for cont in self.get_unique_content():
             valid.add(cont.id)
             existing = repo_file.section(cont.id)
+            server_value_repo = server_value_repo_file.section(cont.id)
+            if server_value_repo is None:
+                server_value_repo = Repo(cont.id)
+                server_value_repo['name'] = cont['name']
+                server_value_repo_file.add(server_value_repo)
             if existing is None:
                 repo_file.add(cont)
                 self.report_add(cont)
             else:
                 # Updates the existing repo with new content
-                self.update_repo(existing, cont)
+                self.update_repo(existing, cont, server_value_repo)
                 repo_file.update(existing)
+                server_value_repo_file.update(server_value_repo)
                 self.report_update(existing)
+
+            if zypper_repo_file:  # no reporting for zypper, already reported for yum
+                zypper_cont = self._zypper_content(cont)
+                existing = zypper_repo_file.section(zypper_cont.id)
+                if existing is None:
+                    zypper_repo_file.add(zypper_cont)
+                else:
+                    zypper_repo_file.update(zypper_cont)
 
         for section in repo_file.sections():
             if section not in valid:
                 self.report_delete(section)
                 repo_file.delete(section)
+                server_value_repo_file.delete(section)
+                if zypper_repo_file:
+                    zypper_repo_file.delete(section)
 
         # Write new RepoFile to disk:
         repo_file.write()
+        server_value_repo_file.write()
+        if zypper_repo_file:
+            zypper_repo_file.write()
         if self.override_supported:
             # Update with the values we just wrote
             self.written_overrides.overrides = self.overrides
             self.written_overrides.write_cache()
         log.info("repos updated: %s" % self.report)
         return self.report
+
+    def _zypper_content(self, content):
+        zypper_cont = content.copy()
+        sslverify = zypper_cont['sslverify']
+        sslcacert = zypper_cont['sslcacert']
+        sslclientkey = zypper_cont['sslclientkey']
+        sslclientcert = zypper_cont['sslclientcert']
+        proxy = zypper_cont['proxy']
+        proxy_username = zypper_cont['proxy_username']
+        proxy_password = zypper_cont['proxy_password']
+
+        del zypper_cont['sslverify']
+        del zypper_cont['sslcacert']
+        del zypper_cont['sslclientkey']
+        del zypper_cont['sslclientcert']
+        del zypper_cont['proxy']
+        del zypper_cont['proxy_username']
+        del zypper_cont['proxy_password']
+        # NOTE looks like metadata_expire and ui_repoid_vars are ignored by zypper
+
+        # clean up data for zypper
+        if zypper_cont['gpgkey'] in ['https://', 'http://']:
+            del zypper_cont['gpgkey']
+
+        baseurl = zypper_cont['baseurl']
+        parsed = urlparse(baseurl)
+        zypper_query_args = parse_qs(parsed.query)
+        if sslverify and sslverify in ['1']:
+            zypper_query_args['ssl_verify'] = 'host'
+        if sslcacert:
+            zypper_query_args['ssl_capath'] = os.path.dirname(sslcacert)
+        if sslclientkey:
+            zypper_query_args['ssl_clientkey'] = sslclientkey
+        if sslclientcert:
+            zypper_query_args['ssl_clientcert'] = sslclientcert
+        if proxy:
+            zypper_query_args['proxy'] = proxy
+        if proxy_username:
+            zypper_query_args['proxyuser'] = proxy_username
+        if proxy_password:
+            zypper_query_args['proxypass'] = proxy_password
+        zypper_query = urlencode(zypper_query_args)
+
+        new_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, zypper_query, parsed.fragment))
+        zypper_cont['baseurl'] = new_url
+
+        return zypper_cont
 
     def get_unique_content(self):
         # FIXME Shouldn't this skip all of the repo updating?
@@ -382,7 +479,7 @@ class RepoUpdateActionCommand(object):
             result[key] = Repo.PROPERTIES.get(key, (1, None))
         return result
 
-    def update_repo(self, old_repo, new_repo):
+    def update_repo(self, old_repo, new_repo, server_value_repo={}):
         """
         Checks an existing repo definition against a potentially updated
         version created from most recent entitlement certificates and
@@ -390,6 +487,8 @@ class RepoUpdateActionCommand(object):
         appropriate and returns the number of changes made. (if any)
         """
         changes_made = 0
+        if server_value_repo is None:
+            server_value_repo = {}
 
         for key, (mutable, _default) in self._build_props(old_repo, new_repo).items():
             new_val = new_repo.get(key)
@@ -400,7 +499,8 @@ class RepoUpdateActionCommand(object):
             # value.
             if mutable and not self._is_overridden(old_repo, key) \
                     and not self._was_overridden(old_repo, key, old_repo.get(key)):
-                if (new_val is not None) and (not old_repo.get(key)):
+                if (new_val is not None) and (not old_repo.get(key) or
+                        old_repo.get(key) == server_value_repo.get(key)):
                     if old_repo.get(key) == new_val:
                         continue
                     old_repo[key] = new_val
@@ -422,6 +522,9 @@ class RepoUpdateActionCommand(object):
 
                 old_repo[key] = new_val
                 changes_made += 1
+
+            if (mutable and new_val is not None):
+                server_value_repo[key] = new_val
 
         return changes_made
 
@@ -526,6 +629,12 @@ class Repo(dict):
         for k, (_m, d) in self.PROPERTIES.items():
             if k not in self.keys():
                 self[k] = d
+
+    def copy(self):
+        new_repo = Repo(self.id)
+        for key, value in self.items():
+            new_repo[key] = value
+        return new_repo
 
     @classmethod
     def from_ent_cert_content(cls, content, baseurl, ca_cert, release_source):
@@ -707,13 +816,11 @@ class TidyWriter:
 
 class RepoFile(ConfigParser):
 
-    PATH = 'etc/yum.repos.d/'
-
-    def __init__(self, name='redhat.repo'):
+    def __init__(self, path='etc/yum.repos.d/', name='redhat.repo'):
         ConfigParser.__init__(self)
         # note PATH get's expanded with chroot info, etc
-        self.path = Path.join(self.PATH, name)
-        self.repos_dir = Path.abs(self.PATH)
+        self.path = Path.join(path, name)
+        self.repos_dir = Path.abs(path)
         self.manage_repos = manage_repos_enabled()
         # Simulate manage repos turned off if no yum.repos.d directory exists.
         # This indicates yum is not installed so clearly no need for us to
@@ -804,4 +911,26 @@ class RepoFile(ConfigParser):
         s.append('# a "yum repolist" to refresh available repos')
         s.append('#')
         f.write('\n'.join(s))
+        f.close()
+
+
+class ZypperRepoFile(RepoFile):
+
+    PATH = 'etc/rhsm/zypper.repos.d'
+
+    def create(self):
+        if self.path_exists(self.path) or not self.manage_repos:
+            return
+        f = open(self.path, 'w')
+        f.write("""#
+# Certificate-Based Repositories
+# Managed by (rhsm) subscription-manager
+#
+# *** This file is auto-generated.  Changes made here will be over-written. ***
+# *** Use "subscription-manager repo-override --help" if you wish to make changes. ***
+#
+# If this file is empty and this system is subscribed consider
+# a "zypper lr" to refresh available repos
+#
+""")
         f.close()
