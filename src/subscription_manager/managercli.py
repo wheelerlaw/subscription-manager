@@ -1069,24 +1069,24 @@ class RegisterCommand(UserPassCommand):
         self.autoattach = self.options.autosubscribe or self.options.autoattach
         if self.is_registered() and not self.options.force:
             system_exit(os.EX_USAGE, _("This system is already registered. Use --force to override"))
-        elif (self.options.consumername == ''):
+        elif self.options.consumername == '':
             system_exit(os.EX_USAGE, _("Error: system name can not be empty."))
-        elif (self.options.username and self.options.activation_keys):
+        elif self.options.username and self.options.activation_keys:
             system_exit(os.EX_USAGE, _("Error: Activation keys do not require user credentials."))
-        elif (self.options.consumerid and self.options.activation_keys):
+        elif self.options.consumerid and self.options.activation_keys:
             system_exit(os.EX_USAGE, _("Error: Activation keys can not be used with previously registered IDs."))
-        elif (self.options.environment and self.options.activation_keys):
+        elif self.options.environment and self.options.activation_keys:
             system_exit(os.EX_USAGE, _("Error: Activation keys do not allow environments to be specified."))
-        elif (self.autoattach and self.options.activation_keys):
+        elif self.autoattach and self.options.activation_keys:
             system_exit(os.EX_USAGE, _("Error: Activation keys cannot be used with --auto-attach."))
         # 746259: Don't allow the user to pass in an empty string as an activation key
-        elif (self.options.activation_keys and '' in self.options.activation_keys):
+        elif self.options.activation_keys and '' in self.options.activation_keys:
             system_exit(os.EX_USAGE, _("Error: Must specify an activation key"))
-        elif (self.options.service_level and not self.autoattach):
+        elif self.options.service_level and not self.autoattach:
             system_exit(os.EX_USAGE, _("Error: Must use --auto-attach with --servicelevel."))
-        elif (self.options.activation_keys and not self.options.org):
+        elif self.options.activation_keys and not self.options.org:
             system_exit(os.EX_USAGE, _("Error: Must provide --org with activation keys."))
-        elif (self.options.force and self.options.consumerid):
+        elif self.options.force and self.options.consumerid:
             system_exit(os.EX_USAGE, _("Error: Can not force registration while attempting to recover registration with consumerid. Please use --force without --consumerid to re-register or use the clean command and try again without --force."))
 
     def persist_server_options(self):
@@ -1098,7 +1098,7 @@ class RegisterCommand(UserPassCommand):
 
     def _do_command(self):
         """
-        Executes the command.
+        Do the command.
         """
 
         self.log_client_version()
@@ -1113,14 +1113,15 @@ class RegisterCommand(UserPassCommand):
         self.installed_mgr = inj.require(inj.INSTALLED_PRODUCTS_MANAGER)
 
         # Set consumer's name to hostname by default:
-        consumername = self.options.consumername
-        if consumername is None:
-            consumername = socket.gethostname()
+        consumer_name = self.options.consumername
+        if consumer_name is None:
+            consumer_name = socket.gethostname()
 
         if self.is_registered() and self.options.force:
             # First let's try to un-register previous consumer; if this fails
             # we'll let the error bubble up, so that we don't blindly re-register.
-            # managerlib.unregister handles the special case that the consumer has already been removed.
+            # managerlib.unregister handles the special case that the consumer has
+            # already been removed.
             old_uuid = self.identity.uuid
 
             managerlib.unregister(self.cp, old_uuid)
@@ -1136,8 +1137,11 @@ class RegisterCommand(UserPassCommand):
         # Proceed with new registration:
         try:
             if not self.options.activation_keys:
-                print _("Registering to: %s:%s%s") % \
-                    (conf["server"]["hostname"], conf["server"]["port"], conf["server"]["prefix"])
+                print(_("Registering to: %s:%s%s") % \
+                      (conf["server"]["hostname"],
+                       conf["server"]["port"],
+                       conf["server"]["prefix"])
+                      )
                 self.cp_provider.set_user_pass(self.username, self.password)
                 admin_cp = self.cp_provider.get_basic_auth_cp()
             else:
@@ -1149,35 +1153,40 @@ class RegisterCommand(UserPassCommand):
             # means things like following name owner changes gets weird.
             facts_dict = facts.get_facts()
 
-            self.plugin_manager.run("pre_register_consumer", name=consumername,
+            self.plugin_manager.run("pre_register_consumer", name=consumer_name,
                                     facts=facts_dict)
 
             if self.options.consumerid:
                 # TODO remove the username/password
                 log.info("Registering as existing consumer: %s" %
-                        self.options.consumerid)
+                         self.options.consumerid)
                 consumer = admin_cp.getConsumer(self.options.consumerid,
-                        self.username, self.password)
+                                                self.username, self.password)
 
                 if 'type' not in consumer:
                     log.warn('Unable to determine consumer type, proceeding with registration.')
 
                 if consumer.get('type', {}).get('manifest', {}):
-                    log.error("registration attempted with consumerid = Subscription Management Application's uuid: %s" % self.options.consumerid)
-                    system_exit(os.EX_USAGE, _("Error: Cannot register with an ID of a Subscription Management Application: %s") % self.options.consumerid)
+                    log.error("registration attempted with consumerid = Subscription Management "
+                              "Application's uuid: %s" % self.options.consumerid)
+                    system_exit(os.EX_USAGE,
+                                _("Error: Cannot register with an ID of a Subscription "
+                                  "Management Application: %s") % self.options.consumerid)
 
             else:
                 owner_key = self._determine_owner_key(admin_cp)
 
                 environment_id = self._get_environment_id(admin_cp, owner_key,
-                        self.options.environment)
+                                                          self.options.environment)
 
-                consumer = admin_cp.registerConsumer(name=consumername,
-                     type=self.options.consumertype, facts=facts_dict,
-                     owner=owner_key, environment=environment_id,
-                     keys=self.options.activation_keys,
-                     installed_products=self.installed_mgr.format_for_server(),
-                     content_tags=self.installed_mgr.tags)
+                consumer = admin_cp.registerConsumer(
+                    name=consumer_name,
+                    type=self.options.consumertype, facts=facts_dict,
+                    owner=owner_key, environment=environment_id,
+                    keys=self.options.activation_keys,
+                    installed_products=self.installed_mgr.format_for_server(),
+                    content_tags=self.installed_mgr.tags
+                )
                 self.installed_mgr.write_cache()
             self.plugin_manager.run("post_register_consumer", consumer=consumer,
                                     facts=facts_dict)
@@ -1192,7 +1201,7 @@ class RegisterCommand(UserPassCommand):
         # We have new credentials, restart virt-who
         restart_virt_who()
 
-        print (_("The system has been registered with ID: %s ")) % (consumer_info["uuid"])
+        print(_("The system has been registered with ID: %s ")) % (consumer_info["uuid"])
 
         # get a new UEP as the consumer
         self.cp = self.cp_provider.get_consumer_auth_cp()
@@ -1208,7 +1217,6 @@ class RegisterCommand(UserPassCommand):
         # Must update facts to clear out the old ones:
         if self.options.consumerid:
             log.info("Updating facts")
-            #
             # FIXME: Need a ConsumerFacts.sync or update or something
             # TODO: We register, with facts, then update facts again...?
             #       Are we trying to sync potential new or dynamic facts?
@@ -1230,21 +1238,27 @@ class RegisterCommand(UserPassCommand):
 
         if self.autoattach:
             if 'serviceLevel' not in consumer and self.options.service_level:
-                system_exit(os.EX_UNAVAILABLE, _("Error: The --servicelevel option is not supported "
-                                 "by the server. Did not complete your request."))
+                system_exit(os.EX_UNAVAILABLE,
+                            _("Error: The --servicelevel option is not supported "
+                              "by the server. Did not complete your request."))
             try:
-                autosubscribe(self.cp, consumer['uuid'], service_level=self.options.service_level)
-            except connection.RestlibException, re:
-                print_error(re.msg)
+                log.info("Auto-attaching/healing the system")
+                autosubscribe(self.cp, consumer['uuid'],
+                              service_level=self.options.service_level)
+            except connection.RestlibException, rest_err:
+                print_error(rest_err.msg)
 
-        if (self.options.consumerid or self.options.activation_keys or self.autoattach or self.cp.has_capability(CONTENT_ACCESS_CERT_CAPABILITY)):
+        if self.options.consumerid or \
+                self.options.activation_keys or \
+                self.autoattach or \
+                self.cp.has_capability(CONTENT_ACCESS_CERT_CAPABILITY):
             log.info("System registered, updating entitlements if needed")
             # update certs, repos, and caches.
             # FIXME: aside from the overhead, should this be cert_action_client.update?
             self.entcertlib.update()
 
         subscribed = 0
-        if (self.options.activation_keys or self.autoattach):
+        if self.options.activation_keys or self.autoattach:
             # update with latest cert info
             self.sorter = inj.require(inj.CERT_SORTER)
             self.sorter.force_cert_check()
@@ -1514,6 +1528,7 @@ class AttachCommand(CliCommand):
             self._short_description(),
             self._primary())
 
+        self.uuid = inj.require(inj.IDENTITY).uuid
         self.product = None
         self.substoken = None
         self.auto_attach = True
@@ -1581,9 +1596,95 @@ class AttachCommand(CliCommand):
             else:
                 system_exit(os.EX_DATAERR, _("Error: The file \"%s\" does not exist or cannot be read.") % self.options.file)
 
+    def _do_pool_command(self):
+        """
+        Do the command with pool option specified
+        """
+        subscribed = False
+        return_code = 0
+        for pool in self.options.pool:
+            try:
+                # odd html strings will cause issues, reject them here.
+                if pool.find("#") >= 0:
+                    system_exit(os.EX_USAGE, _("Please enter a valid numeric pool ID."))
+                # If quantity is None, server will assume 1. pre_subscribe will
+                # report the same.
+                self.plugin_manager.run("pre_subscribe",
+                                        consumer_uuid=self.identity.uuid,
+                                        pool_id=pool,
+                                        quantity=self.options.quantity)
+                ents = self.cp.bindByEntitlementPool(self.identity.uuid,
+                                                     pool,
+                                                     self.options.quantity)
+                self.plugin_manager.run("post_subscribe",
+                                        consumer_uuid=self.identity.uuid,
+                                        entitlement_data=ents)
+                # Usually just one, but may as well be safe:
+                for ent in ents:
+                    pool_json = ent['pool']
+                    print _("Successfully attached a subscription for: %s") % \
+                          pool_json['productName']
+                    log.info("Successfully attached a subscription for: %s (%s)" %
+                             (pool_json['productName'], pool))
+                    subscribed = True
+            except connection.RestlibException, rest_excp:
+                log.exception(rest_excp)
+                if rest_excp.code == 403:
+                    print rest_excp.msg  # already subscribed.
+                elif rest_excp.code == 400 or rest_excp.code == 404:
+                    print rest_excp.msg  # no such pool.
+                else:
+                    system_exit(os.EX_SOFTWARE, rest_excp.msg)  # some other error.. don't try again
+        if not subscribed:
+            return_code = 1
+        return True, return_code
+
+    def _do_auto_attach_command(self):
+        """
+        Do the command, when a pool was not specified.
+        """
+        products_installed = get_installed_product_status(
+            self.product_dir,
+            self.entitlement_dir,
+            self.cp
+        )
+        # if we are green, we don't need to go to the server
+        self.sorter = inj.require(inj.CERT_SORTER)
+
+        cert_update = False
+
+        if self.sorter.is_valid():
+            if len(products_installed) == 0:
+                print(_("No Installed products on system. "
+                        "No need to attach subscriptions."))
+            else:
+                print(_("All installed products are covered by valid entitlements. "
+                        "No need to update subscriptions at this time."))
+            cert_update = False
+        else:
+            # If service level specified, make an additional request to
+            # verify service levels are supported on the server:
+            if self.options.service_level:
+                consumer = self.cp.getConsumer(self.identity.uuid)
+                if 'serviceLevel' not in consumer:
+                    system_exit(os.EX_UNAVAILABLE,
+                                _("Error: The --servicelevel option is not "
+                                  "supported by the server. Did not "
+                                  "complete your request."))
+            autosubscribe(self.cp, self.identity.uuid,
+                          service_level=self.options.service_level)
+        if len(products_installed) > 0:
+            return_code = 1
+        else:
+            self.sorter.force_cert_check()
+            # run this after entcertlib update, so we have the new entitlements
+            return_code = show_autosubscribe_output(self.cp)
+
+        return cert_update, return_code
+
     def _do_command(self):
         """
-        Executes the command.
+        Do the command.
         """
         self.assert_should_be_registered()
         self._validate_options()
@@ -1592,88 +1693,27 @@ class AttachCommand(CliCommand):
         if self.options.pool or self.options.file:
             self.auto_attach = False
 
-        # TODO: change to if self.auto_attach: else: pool/file stuff
         try:
             cert_action_client = ActionClient()
             cert_action_client.update()
             return_code = 0
-            cert_update = True
-            if self.options.pool:
-                subscribed = False
-                for pool in self.options.pool:
-                    try:
-                        # odd html strings will cause issues, reject them here.
-                        if (pool.find("#") >= 0):
-                            system_exit(os.EX_USAGE, _("Please enter a valid numeric pool ID."))
-                        # If quantity is None, server will assume 1. pre_subscribe will
-                        # report the same.
-                        self.plugin_manager.run("pre_subscribe",
-                                                consumer_uuid=self.identity.uuid,
-                                                pool_id=pool,
-                                                quantity=self.options.quantity)
-                        ents = self.cp.bindByEntitlementPool(self.identity.uuid, pool, self.options.quantity)
-                        self.plugin_manager.run("post_subscribe", consumer_uuid=self.identity.uuid, entitlement_data=ents)
-                        # Usually just one, but may as well be safe:
-                        for ent in ents:
-                            pool_json = ent['pool']
-                            print _("Successfully attached a subscription for: %s") % pool_json['productName']
-                            log.info("Successfully attached a subscription for: %s (%s)" %
-                                    (pool_json['productName'], pool))
-                            subscribed = True
-                    except connection.RestlibException, re:
-                        log.exception(re)
-                        if re.code == 403:
-                            print re.msg  # already subscribed.
-                        elif re.code == 400 or re.code == 404:
-                            print re.msg  # no such pool.
-                        else:
-                            system_exit(os.EX_SOFTWARE, re.msg)  # some other error.. don't try again
-                if not subscribed:
-                    return_code = 1
-            # must be auto
-            else:
-                products_installed = len(get_installed_product_status(self.product_dir,
-                                 self.entitlement_dir, self.cp))
-                # if we are green, we don't need to go to the server
-                self.sorter = inj.require(inj.CERT_SORTER)
 
-                if self.sorter.is_valid():
-                    if not products_installed:
-                        print _("No Installed products on system. "
-                                "No need to attach subscriptions.")
-                    else:
-                        print _("All installed products are covered by valid entitlements. "
-                                "No need to update subscriptions at this time.")
-                    cert_update = False
-                else:
-                    # If service level specified, make an additional request to
-                    # verify service levels are supported on the server:
-                    if self.options.service_level:
-                        consumer = self.cp.getConsumer(self.identity.uuid)
-                        if 'serviceLevel' not in consumer:
-                            system_exit(os.EX_UNAVAILABLE, _("Error: The --servicelevel option is not "
-                                             "supported by the server. Did not "
-                                             "complete your request."))
-                    autosubscribe(self.cp, self.identity.uuid,
-                                  service_level=self.options.service_level)
+            if self.options.pool:
+                cert_update, return_code = self._do_pool_command()
+            else:
+                cert_update, return_code = self._do_auto_attach_command()
+
             report = None
             if cert_update:
                 report = self.entcertlib.update()
 
             if report and report.exceptions():
-                print _('Entitlement Certificate(s) update failed due to the following reasons:')
-                for e in report.exceptions():
-                    print '\t-', str(e)
-            elif self.auto_attach:
-                if not products_installed:
-                    return_code = 1
-                else:
-                    self.sorter.force_cert_check()
-                    # run this after entcertlib update, so we have the new entitlements
-                    return_code = show_autosubscribe_output(self.cp)
+                print(_('Entitlement Certificate(s) update failed due to the following reasons:'))
+                for rep_exc in report.exceptions():
+                    print('\t-', str(rep_exc))
 
-        except Exception, e:
-            handle_exception("Unable to attach: %s" % e, e)
+        except Exception as err:
+            handle_exception("Unable to attach: %s" % err, err)
 
         # it is okay to call this no matter what happens above,
         # it's just a notification to perform a check
