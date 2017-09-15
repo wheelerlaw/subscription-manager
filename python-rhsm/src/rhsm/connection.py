@@ -407,6 +407,9 @@ class BaseRestLib(object):
     to make rest calls easy and expose the details of
     responses
     """
+
+    __conn = None
+
     def __init__(self, host, ssl_port, apihandler,
             username=None, password=None,
             proxy_hostname=None, proxy_port=None,
@@ -449,6 +452,10 @@ class BaseRestLib(object):
         # Setup basic authentication if specified:
         if username and password:
             self.headers['Authorization'] = _encode_auth(username, password)
+
+    @classmethod
+    def clean_connection(cls):
+        cls.__conn = None
 
     def _load_ca_certificates(self, context):
         loaded_ca_certs = []
@@ -496,16 +503,21 @@ class BaseRestLib(object):
         if self.cert_file and os.path.exists(self.cert_file):
             context.load_cert_chain(self.cert_file, keyfile=self.key_file)
 
-        if self.proxy_hostname and self.proxy_port:
-            log.debug("Using proxy: %s:%s" % (self.proxy_hostname, self.proxy_port))
-            proxy_headers = {'User-Agent': self.user_agent}
-            if self.proxy_user and self.proxy_password:
-                proxy_headers['Proxy-Authorization'] = _encode_auth(self.proxy_user, self.proxy_password)
-            conn = httplib.HTTPSConnection(self.proxy_hostname, self.proxy_port, context=context, timeout=self.timeout)
-            conn.set_tunnel(self.host, safe_int(self.ssl_port), proxy_headers)
-            self.headers['Host'] = '%s:%s' % (self.host, safe_int(self.ssl_port))
+        if self.__conn is None:
+            if self.proxy_hostname and self.proxy_port:
+                log.debug("Using proxy: %s:%s" % (self.proxy_hostname, self.proxy_port))
+                proxy_headers = {'User-Agent': self.user_agent}
+                if self.proxy_user and self.proxy_password:
+                    proxy_headers['Proxy-Authorization'] = _encode_auth(self.proxy_user, self.proxy_password)
+                conn = httplib.HTTPSConnection(self.proxy_hostname, self.proxy_port, context=context, timeout=self.timeout)
+                conn.set_tunnel(self.host, safe_int(self.ssl_port), proxy_headers)
+                self.headers['Host'] = '%s:%s' % (self.host, safe_int(self.ssl_port))
+            else:
+                conn = httplib.HTTPSConnection(self.host, self.ssl_port, context=context, timeout=self.timeout)
+            self.__conn = conn
         else:
-            conn = httplib.HTTPSConnection(self.host, self.ssl_port, context=context, timeout=self.timeout)
+            log.debug("Reusing connection: %s", self.__conn)
+            conn = self.__conn
 
         if info is not None:
             body = json.dumps(info, default=json.encode)
