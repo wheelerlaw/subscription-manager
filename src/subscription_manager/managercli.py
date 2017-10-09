@@ -529,6 +529,16 @@ class UserPassCommand(CliCommand):
         self.parser.add_option("--password", dest="password",
                                help=_("password to use when authorizing against the server"))
 
+    def __del__(self):
+        """
+        Do proper closing connection after execution of command
+        :return: None
+        """
+        try:
+            self.cp.conn.clean_connection()
+        except AttributeError:
+            pass
+
     @staticmethod
     def _get_username_and_password(username, password):
         """
@@ -1122,6 +1132,8 @@ class RegisterCommand(UserPassCommand):
 
         # get a new UEP as the consumer
         self.cp = self.cp_provider.get_consumer_auth_cp()
+
+        # self.cp.conn.clean_connection()
 
         # log the version of the server we registered to
         self.log_server_version()

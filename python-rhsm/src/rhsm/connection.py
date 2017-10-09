@@ -427,6 +427,7 @@ class BaseRestLib(object):
 
         self.headers = {"Content-type": "application/json",
                         "Accept": "application/json",
+                        "Connection": "keep-alive",
                         "x-python-rhsm-version": python_rhsm_version,
                         "x-subscription-manager-version": subman_version}
 
@@ -455,6 +456,8 @@ class BaseRestLib(object):
 
     @classmethod
     def clean_connection(cls):
+        if cls.__conn is not None:
+            cls.__conn.close()
         cls.__conn = None
 
     def _load_ca_certificates(self, context):
