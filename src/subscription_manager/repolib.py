@@ -74,7 +74,8 @@ class YumPluginManager(object):
     Instance of this class is used for automatic enabling of yum plugins.
     """
 
-    YUM_PLUGIN_DIR = '/etc/yum/pluginconf.d'
+    #YUM_PLUGIN_DIR = '/etc/yum/pluginconf.d'
+    YUM_PLUGIN_DIR = '/etc/dnf/plugins'
 
     # List of yum plugins in YUM_PLUGIN_DIR which are automatically enabled
     # during sub-man CLI/GUI start
@@ -92,6 +93,7 @@ class YumPluginManager(object):
         """
         try:
             auto_enable_yum_plugins = conf['rhsm'].get_int('auto_enable_yum_plugins')
+            log.info('vritant %s' % auto_enable_yum_plugins);
         except ValueError as err:
             log.exception(err)
             auto_enable_yum_plugins = True
@@ -404,6 +406,7 @@ class RepoUpdateActionCommand(object):
 
     def perform(self):
         # Load the RepoFile from disk, this contains all our managed yum repo sections:
+        log.info("vritant in perform");
         yum_repo_file = YumRepoFile()
         server_value_repo_file = YumRepoFile('var/lib/rhsm/repo_server_val/')
         zypper_repo_file = None
@@ -463,6 +466,7 @@ class RepoUpdateActionCommand(object):
                     zypper_repo_file.delete(section)
 
         # Write new RepoFile to disk:
+        log.info("vritant writing file");
         yum_repo_file.write()
         server_value_repo_file.write()
         if zypper_repo_file:

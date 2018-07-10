@@ -19,13 +19,13 @@ PREFIX ?= /usr/local
 SYSCONF ?= etc
 INSTALL_DIR = $(PREFIX)/share
 
-OS = $(shell lsb_release -i | awk '{ print $$3 }' | awk -F. '{ print $$1}')
-OS_VERSION = $(shell lsb_release -r | awk '{ print $$2 }' | awk -F. '{ print $$1}')
+OS = RHEL 
+OS_VERSION = 8
 OS_DIST ?= $(shell rpm --eval='%dist')
 
 PYTHON_VER ?= $(shell $(PYTHON) -c 'import sys; print("python%s.%s" % sys.version_info[:2])')
 
-PYTHON_SITELIB ?= $(PREFIX)/lib64/$(PYTHON_VER)/site-packages
+PYTHON_SITELIB ?= $(PREFIX)/lib/$(PYTHON_VER)/site-packages
 # Note the underscore used instead of a hyphen
 PYTHON_INST_DIR = $(PYTHON_SITELIB)/subscription_manager
 
@@ -211,7 +211,9 @@ install-plugins:
 	if [ "$(INSTALL_DNF_PLUGINS)" = "true" ] ; then \
 		echo "Installing DNF plugins" ; \
 		install -d $(DESTDIR)/$(PYTHON_SITELIB)/dnf-plugins/ ; \
+		install -d $(DESTDIR)/etc/dnf/plugins/ ; \
 		install -m 644 -p src/dnf-plugins/*.py $(DESTDIR)/$(PYTHON_SITELIB)/dnf-plugins/ ; \
+		install -m 644 etc-conf/plugin/*.conf $(DESTDIR)/etc/dnf/plugins/ ; \
 	fi;
 
 	# ostree stuff

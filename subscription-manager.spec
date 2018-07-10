@@ -234,7 +234,6 @@ BuildRequires: desktop-file-utils
 %endif
 
 BuildRequires: %{?suse_version:dbus-1-glib-devel} %{!?suse_version:dbus-glib-devel}
-BuildRequires: %{?suse_version:lsb-release, distribution-release} %{!?suse_version:redhat-lsb}
 BuildRequires: %{?suse_version:gconf2-devel} %{!?suse_version:GConf2-devel}
 BuildRequires: %{?suse_version:update-desktop-files} %{!?suse_version:scrollkeeper}
 
@@ -586,6 +585,12 @@ install -m 644 %{_builddir}/%{buildsubdir}/etc-conf/ca/redhat-uep.pem %{buildroo
     %dir %{_prefix}/lib/yum-plugins/
 %endif
 
+%if %{use_dnf}
+    %dir %{_sysconfdir}/dnf
+    %dir %{_sysconfdir}/dnf/plugins
+    %dir %{_prefix}/lib/dnf-plugins/
+%endif
+
 %if %{use_yum} || %{use_dnf}
     %dir %{_sysconfdir}/yum.repos.d
 %endif
@@ -650,6 +655,14 @@ install -m 644 %{_builddir}/%{buildsubdir}/etc-conf/ca/redhat-uep.pem %{buildroo
     %config(noreplace) %attr(644,root,root) %{_sysconfdir}/yum/pluginconf.d/subscription-manager.conf
     %config(noreplace) %attr(644,root,root) %{_sysconfdir}/yum/pluginconf.d/product-id.conf
     %config(noreplace) %attr(644,root,root) %{_sysconfdir}/yum/pluginconf.d/search-disabled-repos.conf
+%endif
+
+# dnf plugin config
+%if %{use_dnf}
+    # remove the repo file when we are deleted
+    %config(noreplace) %attr(644,root,root) %{_sysconfdir}/dnf/plugins/subscription-manager.conf
+    %config(noreplace) %attr(644,root,root) %{_sysconfdir}/dnf/plugins/product-id.conf
+    %config(noreplace) %attr(644,root,root) %{_sysconfdir}/dnf/plugins/search-disabled-repos.conf
 %endif
 
 # misc system config
