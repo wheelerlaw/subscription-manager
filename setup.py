@@ -42,13 +42,13 @@ class rpm_version_release_build_py(_build_py):
     user_options = _build_py.user_options + [
         ('gtk-version=', None, 'GTK version this is built for'),
         ('rpm-version=', None, 'version and release of the RPM this is built for'),
-        ('use-dnf=', False, 'True if dnf is used, False if yum is used')]
+        ('use-dnf=', None, 'True if dnf is used, False if yum is used')]
 
     def initialize_options(self):
         _build_py.initialize_options(self)
         self.rpm_version = None
         self.gtk_version = None
-        self.use_dnf = False
+        self.use_dnf = None
         self.versioned_packages = []
 
     def finalize_options(self):
@@ -127,13 +127,13 @@ class build(_build):
     user_options = _build.user_options + [
         ('gtk-version=', None, 'GTK version this is built for'),
         ('rpm-version=', None, 'version and release of the RPM this is built for'),
-        ('use-dnf=', False, 'True if dnf is used, False if yum is used')]
+        ('use-dnf=', None, 'True if dnf is used, False if yum is used')]
 
     def initialize_options(self):
         _build.initialize_options(self)
         self.rpm_version = None
         self.gtk_version = None
-        self.use_dnf = False
+        self.use_dnf = None
         self.git_tag_prefix = "subscription-manager-"
 
     def finalize_options(self):
@@ -143,6 +143,9 @@ class build(_build):
 
         if not self.gtk_version:
             self.gtk_version = self.get_gtk_version()
+
+        if not self.use_dnf:
+            self.use_dnf = False
 
     def get_git_describe(self):
         try:

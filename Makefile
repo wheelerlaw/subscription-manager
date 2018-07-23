@@ -112,7 +112,7 @@ build: rhsmcertd rhsm-icon
 # Install doesn't perform a build if it doesn't have too.  Best to clean out
 # any cruft so developers don't end up install old builds.
 	$(PYTHON) ./setup.py clean --all
-	$(PYTHON) ./setup.py build --quiet --gtk-version=$(GTK_VERSION) --rpm-version=$(VERSION)
+	$(PYTHON) ./setup.py build --quiet --gtk-version=$(GTK_VERSION) --rpm-version=$(VERSION) --use-dnf=$(INSTALL_DNF_PLUGINS)
 
 # we never "remake" this makefile, so add a target so
 # we stop searching for implicit rules on how to remake it
