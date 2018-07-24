@@ -27,6 +27,7 @@ import subscription_manager.injection as inj
 from subscription_manager.cache import OverrideStatusCache, WrittenOverrideCache
 from subscription_manager import utils
 from subscription_manager import model
+from subscription_manager import version
 from subscription_manager.model import ent_cert
 from six.moves.urllib.parse import parse_qs, urlparse, urlunparse, urlencode
 from six.moves import configparser
@@ -74,8 +75,8 @@ class YumPluginManager(object):
     Instance of this class is used for automatic enabling of yum plugins.
     """
 
-    #YUM_PLUGIN_DIR = '/etc/yum/pluginconf.d'
-    YUM_PLUGIN_DIR = '/etc/dnf/plugins'
+    YUM_PLUGIN_DIR = '/etc/yum/pluginconf.d'
+    DNF_PLUGIN_DIR = '/etc/dnf/plugins'
 
     # List of yum plugins in YUM_PLUGIN_DIR which are automatically enabled
     # during sub-man CLI/GUI start
@@ -93,7 +94,7 @@ class YumPluginManager(object):
         """
         try:
             auto_enable_yum_plugins = conf['rhsm'].get_int('auto_enable_yum_plugins')
-            log.info('vritant %s' % auto_enable_yum_plugins);
+            log.info('vritantthis  %s %s' % (auto_enable_yum_plugins, version.use_dnf));
         except ValueError as err:
             log.exception(err)
             auto_enable_yum_plugins = True
@@ -130,11 +131,16 @@ class YumPluginManager(object):
 
         # List of successfully enabled plugins
         enabled_yum_plugins = []
+        plugin_dir = ""
+        if version.use_dnf:
+            plugin_dir = DNF_PLUGIN_DIR
+        else
+            plugin_dir = YUM_PLUGIN_DIR
 
         # Go through the list of yum plugins and try to find configuration
         # file of these plugins.
         for yum_plugin_name in cls.YUM_PLUGINS:
-            yum_plugin_file_name = cls.YUM_PLUGIN_DIR + '/' + yum_plugin_name + '.conf'
+            yum_plugin_file_name = plugin_dir + '/' + yum_plugin_name + '.conf'
             yum_plugin_config = ConfigParser()
             try:
                 result = yum_plugin_config.read(yum_plugin_file_name)

@@ -19,7 +19,7 @@ PREFIX ?= /usr/local
 SYSCONF ?= etc
 INSTALL_DIR = $(PREFIX)/share
 
-OS = RHEL 
+OS = RHEL
 OS_VERSION = 8
 OS_DIST ?= $(shell rpm --eval='%dist')
 
@@ -111,13 +111,12 @@ STYLEFILES=$(PYFILES) $(BIN_FILES)
 build: rhsmcertd rhsm-icon
 # Install doesn't perform a build if it doesn't have too.  Best to clean out
 # any cruft so developers don't end up install old builds.
-	if [[ $(OS) == Fedora ] && [ $(OS_VERSION) -gt 21 ] && [ $(OS) == RHEL ] && [ $(OS_VERSION) -gt 8 ]] ;  then \
-            $(USE_DNF) = true; \
-        else \
-            $(USE_DNF) = false; \
-        endif \
 	$(PYTHON) ./setup.py clean --all
-	$(PYTHON) ./setup.py build --quiet --gtk-version=$(GTK_VERSION) --rpm-version=$(VERSION) --use-dnf=$(USE_DNF)
+	if [ "$(OS)" = "RHEL" -a "$(OS_VERSION)" -gt 7 ] || [ "$(OS)" = "FEDORA" -a "$(OS_VERSION)" -gt 21 ] ; then \
+            $(PYTHON) ./setup.py build --quiet --gtk-version=$(GTK_VERSION) --rpm-version=$(VERSION) --use-dnf=true; \
+        else \
+            $(PYTHON) ./setup.py build --quiet --gtk-version=$(GTK_VERSION) --rpm-version=$(VERSION) --use-dnf=false; \
+        fi; \
 
 # we never "remake" this makefile, so add a target so
 # we stop searching for implicit rules on how to remake it
