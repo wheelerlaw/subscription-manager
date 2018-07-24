@@ -111,8 +111,13 @@ STYLEFILES=$(PYFILES) $(BIN_FILES)
 build: rhsmcertd rhsm-icon
 # Install doesn't perform a build if it doesn't have too.  Best to clean out
 # any cruft so developers don't end up install old builds.
+	if [[ $(OS) == Fedora ] && [ $(OS_VERSION) -gt 21 ] && [ $(OS) == RHEL ] && [ $(OS_VERSION) -gt 8 ]] ;  then \
+            $(USE_DNF) = true; \
+        else \
+            $(USE_DNF) = false; \
+        endif \
 	$(PYTHON) ./setup.py clean --all
-	$(PYTHON) ./setup.py build --quiet --gtk-version=$(GTK_VERSION) --rpm-version=$(VERSION) --use-dnf=$(INSTALL_DNF_PLUGINS)
+	$(PYTHON) ./setup.py build --quiet --gtk-version=$(GTK_VERSION) --rpm-version=$(VERSION) --use-dnf=$(USE_DNF)
 
 # we never "remake" this makefile, so add a target so
 # we stop searching for implicit rules on how to remake it
