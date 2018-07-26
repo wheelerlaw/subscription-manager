@@ -19,8 +19,8 @@ PREFIX ?= /usr/local
 SYSCONF ?= etc
 INSTALL_DIR = $(PREFIX)/share
 
-OS = $(shell lsb_release -i | awk '{ print $$3 }' | awk -F. '{ print $$1}')
-OS_VERSION = $(shell lsb_release -r | awk '{ print $$2 }' | awk -F. '{ print $$1}')
+OS = RHEL
+OS_VERSION = 8
 OS_DIST ?= $(shell rpm --eval='%dist')
 
 PYTHON_VER ?= $(shell $(PYTHON) -c 'import sys; print("python%s.%s" % sys.version_info[:2])')
