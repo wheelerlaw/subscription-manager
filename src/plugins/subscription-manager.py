@@ -159,7 +159,7 @@ def warnOrGiveUsageMessage(conduit):
             conduit.info(2, msg)
 
 
-def postconfig_hook(conduit):
+def posttrans_hook(conduit):
     """ update """
     # register rpm name for yum history recording"
     # yum on 5.7 doesn't have this method, so check for it
